@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "iaapi",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hunterleebrown/iaAPI",
+      "state" : {
+        "revision" : "7c32f85da694812bef8faa53141ec17cd8e6a825",
+        "version" : "2.2.5"
+      }
+    }
+  ],
+  "version" : 2
+}
