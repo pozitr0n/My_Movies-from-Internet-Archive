@@ -9,6 +9,8 @@ import UIKit
 import AVKit
 import iaAPI
 
+// Main presenter for every application
+//
 class MainViewController: UIViewController {
 
     let service = ArchiveService()
@@ -31,134 +33,55 @@ class MainViewController: UIViewController {
         tableView.delegate = self
         tableView.dataSource = self
         
-        tableView.register(UINib(nibName: "MainTableViewCell", bundle: nil), forCellReuseIdentifier: "MainCell")
-        tableView.separatorStyle = .none
+        setupUI()
         
     }
     
+    // Search video button
+    //
     @IBAction func updateInfoButton(_ sender: Any) {
         
-        movieFiles.removeAll()
-        items.removeAll()
-        dataForApplication.removeAll()
+        removeAllTheBufferTables()
         
-        let myQuery: String = "david+guetta&and%5B%5D"
-        
-        getArchive(myQuery)
-        
-    }
-    
-    func getAllTheLinksToTheFiles(completion: @escaping (ModelForApplication) -> ()) {
-        
-        if !movieFiles.isEmpty {
-            
-            for movieElement in movieFiles {
-                
-                let url = URL(string: "https://archive.org/metadata/\(movieElement.identifier)")!
-                
-                var request = URLRequest(url: url)
-                request.httpMethod = "GET"
-                
-                URLSession.shared.dataTask(with: request) { (data, response, error) in
-                
-                    do {
-                        
-                        var currentImageName: String = ""
-                        var currentMovieName: String = ""
-                        var currentMainLink_d1: String = ""
-                        var currentMainLink_dir: String = ""
-                        
-                        if let json = try JSONSerialization.jsonObject(with: data!, options: []) as? [String: Any] {
-                            
-                            if let mainLink_d1 = json["d1"] as? String {
-                                currentMainLink_d1 = mainLink_d1
-                            }
-                            
-                            if let mainLink_dir = json["dir"] as? String {
-                                currentMainLink_dir = mainLink_dir
-                            }
-                            
-                            let jsonFiles = json["files"] as! [AnyObject]
-                            
-                            var imageHadFound: Bool = false
-                            var movieHadFound: Bool = false
-                            
-                            for jsonFile in jsonFiles {
-                                
-                                if !imageHadFound || !movieHadFound {
-                                
-                                    let currentFormat = jsonFile["format"] as! String
-                                    let currentName = jsonFile["name"] as! String
-                                    
-                                    if currentFormat == "Item Tile" && self.stringIsThePicture(currentName) {
-                                        currentImageName = currentName
-                                        imageHadFound = true
-                                    }
-                                    
-                                    if currentFormat == "h.264" && self.stringIsTheMovie(currentName) {
-                                        currentMovieName = currentName
-                                        movieHadFound = true
-                                    }
-                                    
-                                }
-                                
-                            }
-                            
-                            if !currentMainLink_d1.isEmpty && !currentMainLink_dir.isEmpty && movieHadFound {
-                                
-                                var currentImageToAdd: String = ""
-                                var currentMovieToAdd: String = ""
-                                
-                                if imageHadFound {
-                                    let tempImageName = currentMainLink_d1 + currentMainLink_dir + "/" + currentImageName
-                                    currentImageToAdd = "https://" + tempImageName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
-                                } else {
-                                    currentImageToAdd = "Empty"
-                                }
-                                
-                                let tempMovieName = currentMainLink_d1 + currentMainLink_dir + "/" + currentMovieName
-                                currentMovieToAdd = "https://" + tempMovieName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
-                                
-                                let newFinalModel = ModelForApplication(nameOfTheMovie: currentMovieName, linkToTheMovie: currentMovieToAdd, linkToThePreview: currentImageToAdd)
-                                
-                                completion(newFinalModel)
-                                
-                            }
-                            
-                        }
-                        
-                    } catch let error as NSError {
-                        print("Failed to load: \(error.localizedDescription)")
-                    }
-                    
-                }.resume()
-                
-            }
-            
-        }
-    
-    }
-    
-    func getArchive(_ myQuery: String) {
-        
-        Task {
-            await getArchiveAsync(myQuery)
-            getAllTheLinksToTheFiles(completion: { newFinalModel in
-                self.addNewData(newFinalModel)
-            })
+        // for example, "tiesto"
+        let tempQuery = mainSearchField.text
+        guard let myQuery = tempQuery else {
+            return
         }
         
-    }
-    
-    func addNewData(_ newFinalModel: ModelForApplication) {
+        if !myQuery.isEmpty {
+            
+            let myFinalQuery = API_Methods().convertSearchStringToDesiredFormat(myQuery)
+            getArchive(myFinalQuery)
+            
+        } else {
+            tableView.reloadData()
+        }
         
         DispatchQueue.main.async {
-            self.dataForApplication.append(newFinalModel)
-            self.tableView.reloadData()
+            self.mainSearchField.resignFirstResponder()
         }
         
     }
     
+    // Method for getting all the results. Using await - first step is getting information,
+    // second step - parcing and presenting them on the view
+    private func getArchive(_ myQuery: String) {
+        
+        Task {
+            
+            await getArchiveAsync(myQuery)
+            
+            API_Methods().getAllTheLinksToTheFiles(movieFiles, completion: { newFinalModel in
+                self.addNewData(newFinalModel)
+            })
+            
+        }
+        
+    }
+    
+    // Method for async getting information using iaAPI functionality
+    //
     func getArchiveAsync(_ query: String) async {
        
         do {
@@ -238,16 +161,42 @@ class MainViewController: UIViewController {
         
     }
     
-    func stringIsThePicture(_ nameFromJson: String) -> Bool {
-        return nameFromJson.contains(".jpg") || nameFromJson.contains(".png") || nameFromJson.contains(".jpeg")
+    // Adding new information row
+    //
+    private func addNewData(_ newFinalModel: ModelForApplication) {
+        
+        DispatchQueue.main.async {
+            self.dataForApplication.append(newFinalModel)
+            self.tableView.reloadData()
+        }
+        
     }
     
-    func stringIsTheMovie(_ nameFromJson: String) -> Bool {
-        return nameFromJson.contains(".mp4")
+    // Method for setting up and configuring UI
+    //
+    private func setupUI() {
+     
+        tableView.register(UINib(nibName: MainTableViewCell.nibName, bundle: nil), forCellReuseIdentifier: MainTableViewCell.identifier)
+        tableView.separatorStyle = .none
+        
+        mainSearchField.clearButtonMode = .whileEditing
+        
+    }
+    
+    // Technical method for removing all the info from the cache tables
+    //
+    private func removeAllTheBufferTables() {
+     
+        movieFiles.removeAll()
+        items.removeAll()
+        dataForApplication.removeAll()
+        
     }
     
 }
 
+// MainViewController-extension for table view
+//
 extension MainViewController: UITableViewDataSource, UITableViewDelegate {
     
     func numberOfSections(in tableView: UITableView) -> Int {
@@ -260,7 +209,7 @@ extension MainViewController: UITableViewDataSource, UITableViewDelegate {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: "MainCell", for: indexPath) as? MainTableViewCell else {
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: MainTableViewCell.identifier, for: indexPath) as? MainTableViewCell else {
             return UITableViewCell()
         }
         
@@ -292,14 +241,24 @@ extension MainViewController: UITableViewDataSource, UITableViewDelegate {
         
         let myURL = URL(string: dataForApplication[indexPath.row].linkToTheMovie)!
         
-        let player = AVPlayer(url: myURL)
-        let vc = AVPlayerViewController()
-        vc.player = player
+        let playerController = AVPlayer(url: myURL)
+        let avPlayerViewController = AVPlayerViewController()
+        avPlayerViewController.player = playerController
 
-        present(vc, animated: true) {
-            vc.player?.play()
+        present(avPlayerViewController, animated: true) {
+            avPlayerViewController.player?.play()
         }
         
+    }
+    
+}
+
+// MainViewController-extension for text view
+//
+extension MainViewController: UITextFieldDelegate {
+    
+    func textFieldShouldClear(_ textField: UITextField) -> Bool {
+        return true
     }
     
 }
