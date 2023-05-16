@@ -3,7 +3,12 @@
 ## An application for searching video content from the source of the Internet Archives
 
 ### Application for searching video content using the service described above.
-### The application uses frameworks: SD WebImage and iaAPI.
+### The application uses frameworks: SD WebImage and iaAPI
+
+```
+https://github.com/hunterleebrown/iaAPI
+```
+
 ### Application examples are below.
 
 ### All the results of the working of the application:
